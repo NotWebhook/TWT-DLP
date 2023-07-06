@@ -1,0 +1,70 @@
+from flask import Flask, request
+import tweepy
+import requests
+
+app = Flask(__name__)
+
+# Twitter API credentials
+consumer_key = ""
+consumer_secret = ""
+access_token = ""
+access_token_secret = ""
+
+# Authenticate to Twitter
+auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+auth.set_access_token(access_token, access_token_secret)
+
+# Create API object
+api = tweepy.API(auth)
+
+@app.route('/', methods=['GET', 'POST'])
+def media_downloader():
+    if request.method == 'POST':
+        tweet_id = request.form['tweet_id']
+        download_media(tweet_id)
+        return 'Media downloaded successfully!'
+    return '''
+        <form method="post" action="/">
+            <label for="tweet_id">Enter Tweet ID:</label>
+            <input type="text" id="tweet_id" name="tweet_id">
+            <input type="submit" value="Download Media">
+        </form>
+    '''
+
+# Function to download media (images and videos)
+def download_media(tweet_id):
+    try:
+        tweet = api.get_status(tweet_id, tweet_mode="extended")
+        if 'media' in tweet.entities:
+            for media in tweet.entities['media']:
+                media_url = media['media_url']
+                if media['type'] == 'photo':
+                    download_image(media_url)
+                elif media['type'] == 'video':
+                    download_video(media['expanded_url'])
+    except tweepy.TweepError as e:
+        print(f"Error: {e}")
+
+# Function to download images
+def download_image(image_url):
+    response = requests.get(image_url)
+    if response.status_code == 200:
+        filename = image_url.split("/")[-1]
+        with open(filename, "wb") as file:
+            file.write(response.content)
+            print(f"Downloaded image: {filename}")
+
+# Function to download videos
+def download_video(video_url):
+    response = requests.get(video_url)
+    if response.status_code == 200:
+        video_info = response.json()['variants'][0]
+        video_url = video_info['url']
+        filename = video_url.split("/")[-1].split("?")[0]
+        with open(filename, "wb") as file:
+            video_response = requests.get(video_url)
+            file.write(video_response.content)
+            print(f"Downloaded video: {filename}")
+
+if __name__ == '__main__':
+    app.run()
